@@ -1,0 +1,9 @@
+FROM python:3.12-slim
+WORKDIR /srv
+RUN pip install --no-cache-dir fastapi uvicorn pydantic
+COPY hr_mock/ hr_mock/
+RUN useradd -m -u 10001 appuser && mkdir -p /data && chown 10001 /data
+USER 10001
+ENV HR_DB=/data/hr.db
+EXPOSE 9000
+CMD ["uvicorn", "hr_mock.main:app", "--host", "0.0.0.0", "--port", "9000"]

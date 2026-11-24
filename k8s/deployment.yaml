@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: rag-api, labels: { app: rag-api } }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: rag-api } }
+  template:
+    metadata: { labels: { app: rag-api } }
+    spec:
+      serviceAccountName: rag-api
+      containers:
+        - name: api
+          image: <계정>.dkr.ecr.ap-northeast-2.amazonaws.com/rag-<번호>:<SHA>
+          ports: [{ containerPort: 8000 }]
+          envFrom: [{ configMapRef: { name: rag-config } }]
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits:   { memory: 1Gi }
+          readinessProbe:
+            httpGet: { path: /health, port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8000 }
+            initialDelaySeconds: 20
+            periodSeconds: 20

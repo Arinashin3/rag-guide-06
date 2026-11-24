@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: hr-mock }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: hr-mock } }
+  template:
+    metadata: { labels: { app: hr-mock } }
+    spec:
+      containers:
+        - name: hr
+          image: <계정>.dkr.ecr.ap-northeast-2.amazonaws.com/rag-<번호>:hr-mock
+          ports: [{ containerPort: 9000 }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: hr-mock }
+spec:
+  selector: { app: hr-mock }
+  ports: [{ port: 80, targetPort: 9000 }]   # 내부 주소: http://hr-mock

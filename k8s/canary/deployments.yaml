@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: rag-stable, labels: { app: rag, track: stable } }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: rag, track: stable } }
+  template:
+    metadata: { labels: { app: rag, track: stable } }
+    spec:
+      serviceAccountName: rag-api
+      containers:
+        - name: api
+          image: <계정>.dkr.ecr.ap-northeast-2.amazonaws.com/rag-<번호>:<SHA>
+          ports: [{ containerPort: 8000 }]
+          envFrom: [{ configMapRef: { name: rag-config-stable } }]
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits:   { memory: 1Gi }
+          readinessProbe: { httpGet: { path: /health, port: 8000 }, initialDelaySeconds: 5, periodSeconds: 10 }
+          livenessProbe:  { httpGet: { path: /health, port: 8000 }, initialDelaySeconds: 20, periodSeconds: 20 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: rag-canary, labels: { app: rag, track: canary } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: rag, track: canary } }
+  template:
+    metadata: { labels: { app: rag, track: canary } }
+    spec:
+      serviceAccountName: rag-api
+      containers:
+        - name: api
+          image: <계정>.dkr.ecr.ap-northeast-2.amazonaws.com/rag-<번호>:<SHA>
+          ports: [{ containerPort: 8000 }]
+          envFrom: [{ configMapRef: { name: rag-config-canary } }]
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits:   { memory: 1Gi }
+          readinessProbe: { httpGet: { path: /health, port: 8000 }, initialDelaySeconds: 5, periodSeconds: 10 }
+          livenessProbe:  { httpGet: { path: /health, port: 8000 }, initialDelaySeconds: 20, periodSeconds: 20 }

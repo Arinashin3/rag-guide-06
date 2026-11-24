@@ -1,0 +1,7 @@
+.venv/
+.env
+__pycache__/
+eval/results/
+index_*/
+logs/
+*.log

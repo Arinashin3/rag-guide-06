@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rag-guide 실습 콘솔</title>
+<link rel="stylesheet" href="console.css">
+</head>
+<body>
+<header>
+  <b>rag-guide 실습 콘솔</b>
+  <label>대상 API <input type="text" id="base" value="http://localhost:8000"></label>
+  <label><input type="checkbox" id="canary"> X-Canary: 1</label>
+  <span id="env"></span>
+</header>
+<nav id="tabs"></nav>
+<main id="panes"></main>
+<script src="console.js"></script>
+<!-- 탭: Lab 을 진행하며 한 줄씩 추가합니다 -->
+<script src="tab-llm.js"></script>
+<script src="tab-classify.js"></script>
+<script src="tab-rag.js"></script>
+</body>
+</html>

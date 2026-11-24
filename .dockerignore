@@ -1,0 +1,14 @@
+.venv/
+.git/
+.env
+*.pem
+**/__pycache__/
+eval/results/
+index_*/
+logs/
+.claude/
+k8s/
+!index_big/
+app/static/
+app/dev.py
+app/console.py

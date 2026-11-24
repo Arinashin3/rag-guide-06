@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "properties": {
+    "decision":   {"type": "string", "enum": ["승인", "보류", "반려"]},
+    "reason":     {"type": "string", "maxLength": 200},
+    "confidence": {"type": "string", "enum": ["높음", "중간", "낮음"]},
+    "needs_human": {"type": "boolean"}
+  },
+  "required": ["decision", "reason", "confidence", "needs_human"],
+  "additionalProperties": false
+}

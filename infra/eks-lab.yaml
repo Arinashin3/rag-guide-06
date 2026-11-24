@@ -1,0 +1,157 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Module3 lab env (instructor pre-setup): per-student VPC + EKS cluster + nodes + ECR + Pod Identity roles"
+
+Parameters:
+  Num:
+    Type: String
+    Default: "01"
+    Description: student number
+  K8sVersion:
+    Type: String
+    Default: "1.36"
+  LbPolicyArn:
+    Type: String
+    Description: AWS Load Balancer Controller IAM policy ARN
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{ Key: Name, Value: !Sub "rag-${Num}" }, { Key: Project, Value: ops-lab }]
+  Igw:
+    Type: AWS::EC2::InternetGateway
+  IgwAttach:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties: { VpcId: !Ref Vpc, InternetGatewayId: !Ref Igw }
+  Rt:
+    Type: AWS::EC2::RouteTable
+    Properties: { VpcId: !Ref Vpc }
+  RtDefault:
+    Type: AWS::EC2::Route
+    DependsOn: IgwAttach
+    Properties: { RouteTableId: !Ref Rt, DestinationCidrBlock: 0.0.0.0/0, GatewayId: !Ref Igw }
+  SubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - { Key: kubernetes.io/role/elb, Value: "1" }
+        - { Key: !Sub "kubernetes.io/cluster/rag-${Num}", Value: shared }
+  SubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [2, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - { Key: kubernetes.io/role/elb, Value: "1" }
+        - { Key: !Sub "kubernetes.io/cluster/rag-${Num}", Value: shared }
+  RtA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref SubnetA, RouteTableId: !Ref Rt }
+  RtC:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref SubnetC, RouteTableId: !Ref Rt }
+
+  ClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: [{ Effect: Allow, Principal: { Service: eks.amazonaws.com }, Action: "sts:AssumeRole" }]
+      ManagedPolicyArns: ["arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"]
+  Cluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: !Sub "rag-${Num}"
+      Version: !Ref K8sVersion
+      RoleArn: !GetAtt ClusterRole.Arn
+      AccessConfig: { AuthenticationMode: API_AND_CONFIG_MAP, BootstrapClusterCreatorAdminPermissions: true }
+      ResourcesVpcConfig:
+        SubnetIds: [!Ref SubnetA, !Ref SubnetC]
+        EndpointPublicAccess: true
+      Tags: [{ Key: Project, Value: ops-lab }]
+
+  NodeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: [{ Effect: Allow, Principal: { Service: ec2.amazonaws.com }, Action: "sts:AssumeRole" }]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+  Nodes:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      ClusterName: !Ref Cluster
+      NodegroupName: ng-main
+      NodeRole: !GetAtt NodeRole.Arn
+      Subnets: [!Ref SubnetA, !Ref SubnetC]
+      InstanceTypes: [t3.medium]
+      AmiType: AL2023_x86_64_STANDARD
+      ScalingConfig: { MinSize: 2, DesiredSize: 2, MaxSize: 3 }
+      DiskSize: 30
+      Tags: { Project: ops-lab }
+
+  PodIdentityAddon:
+    Type: AWS::EKS::Addon
+    DependsOn: Nodes
+    Properties: { ClusterName: !Ref Cluster, AddonName: eks-pod-identity-agent }
+  MetricsServerAddon:
+    Type: AWS::EKS::Addon
+    DependsOn: Nodes
+    Properties: { ClusterName: !Ref Cluster, AddonName: metrics-server }
+
+  Repo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "rag-${Num}"
+      EmptyOnDelete: true
+      ImageScanningConfiguration: { ScanOnPush: false }
+
+  RagBedrockRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "rag-bedrock-${Num}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: [{ Effect: Allow, Principal: { Service: pods.eks.amazonaws.com }, Action: ["sts:AssumeRole", "sts:TagSession"] }]
+      Policies:
+        - PolicyName: bedrock-invoke
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
+                Resource: "*"
+  LbControllerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "lbc-rag-${Num}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: [{ Effect: Allow, Principal: { Service: pods.eks.amazonaws.com }, Action: ["sts:AssumeRole", "sts:TagSession"] }]
+      ManagedPolicyArns: [!Ref LbPolicyArn]
+  LbAssociation:
+    Type: AWS::EKS::PodIdentityAssociation
+    DependsOn: PodIdentityAddon
+    Properties:
+      ClusterName: !Ref Cluster
+      Namespace: kube-system
+      ServiceAccount: aws-load-balancer-controller
+      RoleArn: !GetAtt LbControllerRole.Arn
+
+Outputs:
+  ClusterName: { Value: !Ref Cluster }
+  VpcId: { Value: !Ref Vpc }
+  RepoUri: { Value: !GetAtt Repo.RepositoryUri }
+  RagBedrockRoleArn: { Value: !GetAtt RagBedrockRole.Arn }
