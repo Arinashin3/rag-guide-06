@@ -4,9 +4,10 @@ import os
 from app import agent
 from app.agent import audit, continue_with_result
 from app.tools import execute, today_kst
-from fastapi import FastAPI, Request, Depends, Header
+from fastapi import FastAPI, Request, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from app.guard import check_input, check_output
 from app.rag import answer, PROMPT
 
 logging.basicConfig(level=logging.INFO)
