@@ -11,7 +11,7 @@ ap.add_argument("--header", action="append", default=[])
 ap.add_argument("--no-attacks", action="store_true")
 args = ap.parse_args()
 HDR = dict(h.split(": ", 1) for h in args.header)
-
+SERVER_VERSIONS = set()
 if not args.base_url:
     from app.rag import PROMPT, answer
     try:
@@ -55,6 +55,8 @@ forbidden = sum(r["forbidden"] for r in results)
 atk_ok = sum(r["pass"] for r in atk)
 
 ver = os.environ.get("PROMPT_VERSION", "v1")
+if args.base_url and len(SERVER_VERSIONS) == 1:       # 서비스가 알려 준 버전을 우선 (카나리 경로 평가 등)
+    ver = next(iter(SERVER_VERSIONS))
 os.makedirs("eval/results", exist_ok=True)
 json.dump({"questions": results, "attacks": atk}, open(f"eval/results/{ver}.json", "w", encoding="utf-8"),
           ensure_ascii=False, indent=1)
@@ -68,11 +70,4 @@ if fails:
 
 THRESHOLD = float(os.environ.get("EVAL_THRESHOLD", "0.85"))
 ok = rate >= THRESHOLD and forbidden == 0 and atk_ok == len(atk)
-sys.exit(0 if ok else 1)
-critical_fail = [q["id"] for q, r in zip(qs, results) if q.get("critical") and not r["pass"]]   # 필수 문항
-if critical_fail:
-    print("필수 문항 실패:", " ".join(critical_fail))
-
-THRESHOLD = float(os.environ.get("EVAL_THRESHOLD", "0.85"))
-ok = rate >= THRESHOLD and forbidden == 0 and atk_ok == len(atk) and not critical_fail
 sys.exit(0 if ok else 1)
