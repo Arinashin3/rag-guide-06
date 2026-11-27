@@ -1,7 +1,7 @@
 import logging
 import os
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel, Field
 from app.guard import check_input, check_output
 from app.rag import answer, PROMPT
