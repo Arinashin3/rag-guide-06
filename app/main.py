@@ -4,7 +4,7 @@ import os
 from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field
 from app.guard import check_input, check_output
-from app.rag import answer
+from app.rag import answer, PROMPT
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="rag-guide")
